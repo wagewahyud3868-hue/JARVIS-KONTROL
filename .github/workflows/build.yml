@@ -115,15 +115,15 @@ jobs:
               android:viewportWidth="48"
               android:viewportHeight="48">
               <path
-                  android:fillColor="#0D0F12"
+                  android:fillColor="#02070D"
                   android:pathData="M10,2h28a8,8 0,0 1,8 8v28a8,8 0,0 1,-8 8h-28a8,8 0,0 1,-8 -8v-28a8,8 0,0 1,8 -8z" />
               <path
-                  android:strokeColor="#EEF0F3"
+                  android:strokeColor="#D9F7FF"
                   android:strokeWidth="2.6"
                   android:fillColor="#00000000"
                   android:pathData="M8,20h13v6a5,5 0,0 1,-5 5h-3a5,5 0,0 1,-5 -5z M27,20h13v6a5,5 0,0 1,-5 5h-3a5,5 0,0 1,-5 -5z M21,22.5h6" />
               <path
-                  android:fillColor="#FFD000"
+                  android:fillColor="#00E1FF"
                   android:pathData="M35.5,23.5m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
           </vector>
           JARVIS_EOF_5
@@ -157,6 +157,7 @@ jobs:
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.graphics.Canvas;
+          import android.graphics.DashPathEffect;
           import android.graphics.Paint;
           import android.graphics.RectF;
           import android.graphics.Typeface;
@@ -201,8 +202,10 @@ jobs:
               static final String ACTION_BATT = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED";
               static final String EXTRA_BATT = "android.bluetooth.device.extra.BATTERY_LEVEL";
 
-              static final int BG = 0xFF0D0F12, PANEL = 0xFF171A1F, LINE = 0xFF262A31, INK = 0xFFEEF0F3,
-                      MUTED = 0xFF8D94A0, ACCENT = 0xFFFFD000, OK = 0xFF4FD1A5, BAD = 0xFFFF5B5B;
+              // Tema HUD hologram
+              static final int BG = 0xFF02070D, PANEL = 0xCC061A26, LINE = 0x5500D6FF, INK = 0xFFD9F7FF,
+                      MUTED = 0xFF6AA6BB, ACCENT = 0xFF00E1FF, OK = 0xFF3CF2C4, BAD = 0xFFFF4D6D, WARN = 0xFFFFB547,
+                      ON_ACCENT = 0xFF001A22;
 
               static final int REQ_PERM = 7;
               static final long REFRESH_MS = 30000;
@@ -218,7 +221,7 @@ jobs:
               final Handler ui = new Handler(Looper.getMainLooper());
 
               TextView tvName, tvConn, tvPct, tvSrc, tvHint;
-              BatteryBar bar;
+              HudGauge bar;
               LinearLayout deviceList;
 
               int level = -1;
@@ -612,7 +615,7 @@ jobs:
               void setLevel(int lv, String src) {
                   level = lv;
                   tvPct.setText(lv + "%");
-                  int col = lv <= 20 ? BAD : lv <= 40 ? ACCENT : OK;
+                  int col = lv <= 20 ? BAD : lv <= 40 ? WARN : OK;
                   tvPct.setTextColor(col);
                   bar.set(lv, col);
                   tvSrc.setText(src + " · " + estimate(lv));
@@ -693,7 +696,7 @@ jobs:
                           level = -1;
                           tvPct.setText("--%");
                           tvPct.setTextColor(MUTED);
-                          bar.set(0, LINE);
+                          bar.reset();
                           closeGatt();
                           tvName.setText(safeName(d));
                           listDevices();
@@ -719,7 +722,7 @@ jobs:
                   getWindow().setNavigationBarColor(BG);
 
                   ScrollView sv = new ScrollView(this);
-                  sv.setBackgroundColor(BG);
+                  sv.setBackground(new GridDrawable(dp(32)));
                   sv.setFillViewport(true);
 
                   LinearLayout root = new LinearLayout(this);
@@ -727,9 +730,13 @@ jobs:
                   root.setPadding(dp(20), dp(28), dp(20), dp(28));
                   sv.addView(root);
 
-                  TextView title = text("JARVIS Kontrol", 26, INK, true);
+                  TextView title = text("JARVIS", 34, ACCENT, true);
+                  title.setLetterSpacing(0.35f);
+                  title.setShadowLayer(dp(10), 0, 0, ACCENT);
                   root.addView(title);
-                  root.addView(text("Pendamping kacamata Q11-106C · ditenagai Claude", 14, MUTED, false), lp(-1, -2, 0, dp(2), 0, dp(20)));
+                  TextView subtitle = text("KONTROL KACAMATA · DITENAGAI CLAUDE", 12, MUTED, false);
+                  subtitle.setLetterSpacing(0.18f);
+                  root.addView(subtitle, lp(-1, -2, 0, dp(2), 0, dp(20)));
 
                   // Kartu baterai
                   LinearLayout card = panel();
@@ -738,12 +745,13 @@ jobs:
                   tvConn = text("●  Memeriksa…", 14, MUTED, false);
                   card.addView(tvConn, lp(-1, -2, 0, dp(4), 0, dp(14)));
 
-                  card.addView(text("BATERAI KACAMATA", 12, MUTED, true));
-                  tvPct = text("--%", 64, MUTED, true);
-                  tvPct.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-                  card.addView(tvPct, lp(-1, -2, 0, dp(2), 0, dp(8)));
-                  bar = new BatteryBar(this);
-                  card.addView(bar, lp(-1, dp(14), 0, 0, 0, dp(10)));
+                  tvPct = text("--%", 12, MUTED, true);
+                  tvPct.setVisibility(View.GONE);
+                  card.addView(tvPct);
+                  bar = new HudGauge(this);
+                  LinearLayout.LayoutParams gp = lp(dp(230), dp(230), 0, dp(4), 0, dp(10));
+                  gp.gravity = Gravity.CENTER_HORIZONTAL;
+                  card.addView(bar, gp);
                   tvSrc = text("Menunggu data…", 13, MUTED, false);
                   card.addView(tvSrc);
                   root.addView(card, lp(-1, -2, 0, 0, 0, dp(16)));
@@ -779,7 +787,9 @@ jobs:
                   root.addView(perm, lp(-1, dp(50), 0, 0, 0, dp(24)));
 
                   // Daftar perangkat
-                  root.addView(text("PILIH KACAMATA", 12, MUTED, true), lp(-1, -2, 0, 0, 0, dp(8)));
+                  TextView pick = text("PILIH KACAMATA", 12, ACCENT, true);
+                  pick.setLetterSpacing(0.2f);
+                  root.addView(pick, lp(-1, -2, 0, 0, 0, dp(8)));
                   deviceList = new LinearLayout(this);
                   deviceList.setOrientation(LinearLayout.VERTICAL);
                   root.addView(deviceList);
@@ -796,7 +806,7 @@ jobs:
                   p.setPadding(dp(18), dp(18), dp(18), dp(18));
                   GradientDrawable g = new GradientDrawable();
                   g.setColor(PANEL);
-                  g.setCornerRadius(dp(18));
+                  g.setCornerRadius(dp(4));
                   g.setStroke(dp(1), LINE);
                   p.setBackground(g);
                   return p;
@@ -807,7 +817,7 @@ jobs:
                   t.setText(s);
                   t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
                   t.setTextColor(col);
-                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  t.setTypeface(Typeface.create("sans-serif-condensed", bold ? Typeface.BOLD : Typeface.NORMAL));
                   t.setLineSpacing(0, 1.15f);
                   return t;
               }
@@ -815,13 +825,15 @@ jobs:
               Button button(String s, boolean primary) {
                   Button b = new Button(this);
                   b.setText(s);
-                  b.setAllCaps(false);
-                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-                  b.setTextColor(primary ? 0xFF14120A : INK);
+                  b.setAllCaps(true);
+                  b.setLetterSpacing(0.1f);
+                  b.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                  b.setTextColor(primary ? ON_ACCENT : INK);
                   b.setGravity(Gravity.CENTER);
                   GradientDrawable g = new GradientDrawable();
                   g.setColor(primary ? ACCENT : PANEL);
-                  g.setCornerRadius(dp(14));
+                  g.setCornerRadius(dp(4));
                   g.setStroke(dp(1), primary ? ACCENT : LINE);
                   b.setBackground(g);
                   b.setStateListAnimator(null);
@@ -840,7 +852,111 @@ jobs:
                   return Math.round(v * getResources().getDisplayMetrics().density);
               }
 
-              /** Batang baterai sederhana. */
+              /** Cincin baterai bergaya HUD: busur persen, gerigi, dan cincin putus-putus yang berputar. */
+              static class HudGauge extends View {
+                  final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint dash = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint tick = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint sub = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final RectF r = new RectF();
+                  final float d;
+                  int pct = -1;
+                  int color = ACCENT;
+                  float spin = 0f;
+
+                  HudGauge(Context c) {
+                      super(c);
+                      d = c.getResources().getDisplayMetrics().density;
+                      track.setStyle(Paint.Style.STROKE);
+                      track.setStrokeWidth(10 * d);
+                      track.setColor(0x2600E1FF);
+                      arc.setStyle(Paint.Style.STROKE);
+                      arc.setStrokeWidth(10 * d);
+                      arc.setStrokeCap(Paint.Cap.ROUND);
+                      dash.setStyle(Paint.Style.STROKE);
+                      dash.setStrokeWidth(2 * d);
+                      dash.setColor(0x9900E1FF);
+                      dash.setPathEffect(new DashPathEffect(new float[]{6 * d, 9 * d}, 0));
+                      tick.setStyle(Paint.Style.STROKE);
+                      tick.setStrokeWidth(2 * d);
+                      tick.setColor(0x6600E1FF);
+                      txt.setTextAlign(Paint.Align.CENTER);
+                      txt.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
+                      txt.setTextSize(44 * d);
+                      sub.setColor(MUTED);
+                      sub.setTextAlign(Paint.Align.CENTER);
+                      sub.setTypeface(Typeface.MONOSPACE);
+                      sub.setTextSize(11 * d);
+                      sub.setLetterSpacing(0.25f);
+                  }
+
+                  void set(int p, int c) {
+                      pct = Math.max(0, Math.min(100, p));
+                      color = c;
+                      invalidate();
+                  }
+
+                  void reset() {
+                      pct = -1;
+                      color = ACCENT;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      float w = getWidth(), h = getHeight(), cx = w / 2f, cy = h / 2f;
+                      float rad = Math.min(w, h) / 2f - 18 * d;
+                      c.save();
+                      c.rotate(spin, cx, cy);
+                      c.drawCircle(cx, cy, rad + 12 * d, dash);
+                      c.restore();
+                      for (int i = 0; i < 60; i++) {
+                          double a = Math.toRadians(i * 6 - spin / 3f);
+                          float r1 = rad - 14 * d, r2 = rad - (i % 5 == 0 ? 24 : 18) * d;
+                          c.drawLine(cx + (float) Math.cos(a) * r1, cy + (float) Math.sin(a) * r1,
+                                  cx + (float) Math.cos(a) * r2, cy + (float) Math.sin(a) * r2, tick);
+                      }
+                      r.set(cx - rad, cy - rad, cx + rad, cy + rad);
+                      c.drawArc(r, 0, 360, false, track);
+                      if (pct >= 0) {
+                          arc.setColor(color);
+                          c.drawArc(r, -90, 360f * pct / 100f, false, arc);
+                      }
+                      txt.setColor(pct >= 0 ? color : MUTED);
+                      c.drawText(pct >= 0 ? pct + "%" : "--%", cx, cy + 14 * d, txt);
+                      c.drawText("BATERAI", cx, cy + 40 * d, sub);
+                      spin = (spin + 0.5f) % 360f;
+                      postInvalidateOnAnimation();
+                  }
+              }
+
+              /** Latar hitam dengan grid halus. */
+              static class GridDrawable extends android.graphics.drawable.Drawable {
+                  final Paint p = new Paint();
+                  final float step;
+
+                  GridDrawable(float step) {
+                      this.step = step;
+                      p.setColor(0x1400E1FF);
+                      p.setStrokeWidth(1f);
+                  }
+
+                  @Override
+                  public void draw(Canvas c) {
+                      android.graphics.Rect b = getBounds();
+                      c.drawColor(BG);
+                      for (float x = b.left; x < b.right; x += step) c.drawLine(x, b.top, x, b.bottom, p);
+                      for (float y = b.top; y < b.bottom; y += step) c.drawLine(b.left, y, b.right, y, p);
+                  }
+
+                  @Override public void setAlpha(int a) { }
+                  @Override public void setColorFilter(android.graphics.ColorFilter cf) { }
+                  @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
+              }
+
+              /** Batang baterai sederhana (cadangan, tidak dipakai). */
               static class BatteryBar extends View {
                   final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
                   final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
