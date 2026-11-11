@@ -2153,8 +2153,9 @@ jobs:
                           return;
                       }
                   }
-                  if (!canPop) {
-                      // cadangan: kalau HP melarang membuka aplikasi dari latar belakang
+                  if (!canPop) status("Izin \"Tampil di atas aplikasi lain\" belum aktif. Ketuk notifikasi untuk membuka Maps.");
+                  {
+                      // cadangan: notifikasi yang bisa diketuk, untuk HP yang melarang membuka aplikasi dari latar belakang
                       PendingIntent pi = PendingIntent.getActivity(this, 7, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
                       Notification n = new Notification.Builder(this, CH_ALERT)
                               .setSmallIcon(android.R.drawable.ic_dialog_map)
@@ -2162,6 +2163,7 @@ jobs:
                               .setContentText("Ketuk untuk membuka Google Maps")
                               .setContentIntent(pi)
                               .setAutoCancel(true)
+                              .setTimeoutAfter(120000)
                               .build();
                       NotificationManager nm = getSystemService(NotificationManager.class);
                       if (nm != null) nm.notify(21, n);
