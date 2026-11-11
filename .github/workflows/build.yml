@@ -879,21 +879,38 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      - name: Siapkan Android SDK
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "SDK=$SDK"
+          ls "$SDK" || true
+          echo "sdk.dir=$SDK" > proj/local.properties
+          SM=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager=$SM"
+          if [ -n "$SM" ]; then
+            yes | "$SM" --licenses > /dev/null || true
+            "$SM" "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+          fi
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Siapkan Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip -d "$HOME"
+          echo "$HOME/gradle-8.9/bin" >> "$GITHUB_PATH"
 
       - name: Build APK
-        run: cd proj && gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          gradle --version
+          cd proj && gradle assembleDebug --no-daemon --stacktrace
 
       - name: Siapkan APK
         run: cp proj/app/build/outputs/apk/debug/app-debug.apk JARVIS-Kontrol.apk
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.${{ github.run_number }}
-          name: JARVIS Kontrol v1.${{ github.run_number }}
-          body: Unduh JARVIS-Kontrol.apk di bawah, lalu buka file-nya di HP untuk memasang.
-          files: JARVIS-Kontrol.apk
+      - name: Terbitkan di Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.${{ github.run_number }}" JARVIS-Kontrol.apk \
+            --repo "${{ github.repository }}" \
+            --title "JARVIS Kontrol v1.${{ github.run_number }}" \
+            --notes "Unduh JARVIS-Kontrol.apk di bawah, lalu buka file-nya di HP untuk memasang."
