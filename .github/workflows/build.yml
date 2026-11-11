@@ -12,12 +12,869 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Tulis kode aplikasi
+        run: |
+          mkdir -p proj
+          cat > "proj/settings.gradle" <<'JARVIS_EOF_0'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "JarvisKontrol"
+          include ':app'
+          JARVIS_EOF_0
+          cat > "proj/build.gradle" <<'JARVIS_EOF_1'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          JARVIS_EOF_1
+          cat > "proj/gradle.properties" <<'JARVIS_EOF_2'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          JARVIS_EOF_2
+          mkdir -p "proj/app"
+          cat > "proj/app/build.gradle" <<'JARVIS_EOF_3'
+          plugins {
+              id 'com.android.application'
+          }
 
-      - name: Bongkar zip
-        run: unzip -o jarvis-kontrol.zip
+          android {
+              namespace 'com.jarvis.kontrol'
+              compileSdk 34
 
-      - uses: actions/setup-java@v4
+              defaultConfig {
+                  applicationId "com.jarvis.kontrol"
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          JARVIS_EOF_3
+          mkdir -p "proj/app/src/main"
+          cat > "proj/app/src/main/AndroidManifest.xml" <<'JARVIS_EOF_4'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <!-- Bluetooth: Android 11 ke bawah -->
+              <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+              <!-- Bluetooth: Android 12 ke atas -->
+              <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+              <uses-permission
+                  android:name="android.permission.BLUETOOTH_SCAN"
+                  android:usesPermissionFlags="neverForLocation" />
+              <!-- Peringatan baterai lemah -->
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+              <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+              <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.VIEW" />
+                      <data android:scheme="https" />
+                  </intent>
+              </queries>
+
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:label="JARVIS Kontrol"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          JARVIS_EOF_4
+          mkdir -p "proj/app/src/main/res/drawable"
+          cat > "proj/app/src/main/res/drawable/ic_launcher.xml" <<'JARVIS_EOF_5'
+          <?xml version="1.0" encoding="utf-8"?>
+          <!-- Ikon: kacamata dengan lampu indikator kuning di atas latar gelap -->
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp"
+              android:height="48dp"
+              android:viewportWidth="48"
+              android:viewportHeight="48">
+              <path
+                  android:fillColor="#0D0F12"
+                  android:pathData="M10,2h28a8,8 0,0 1,8 8v28a8,8 0,0 1,-8 8h-28a8,8 0,0 1,-8 -8v-28a8,8 0,0 1,8 -8z" />
+              <path
+                  android:strokeColor="#EEF0F3"
+                  android:strokeWidth="2.6"
+                  android:fillColor="#00000000"
+                  android:pathData="M8,20h13v6a5,5 0,0 1,-5 5h-3a5,5 0,0 1,-5 -5z M27,20h13v6a5,5 0,0 1,-5 5h-3a5,5 0,0 1,-5 -5z M21,22.5h6" />
+              <path
+                  android:fillColor="#FFD000"
+                  android:pathData="M35.5,23.5m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
+          </vector>
+          JARVIS_EOF_5
+          mkdir -p "proj/app/src/main/java/com/jarvis/kontrol"
+          cat > "proj/app/src/main/java/com/jarvis/kontrol/MainActivity.java" <<'JARVIS_EOF_6'
+          package com.jarvis.kontrol;
+
+          import android.Manifest;
+          import android.annotation.SuppressLint;
+          import android.app.Activity;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.bluetooth.BluetoothAdapter;
+          import android.bluetooth.BluetoothDevice;
+          import android.bluetooth.BluetoothGatt;
+          import android.bluetooth.BluetoothGattCallback;
+          import android.bluetooth.BluetoothGattCharacteristic;
+          import android.bluetooth.BluetoothGattDescriptor;
+          import android.bluetooth.BluetoothGattService;
+          import android.bluetooth.BluetoothManager;
+          import android.bluetooth.BluetoothProfile;
+          import android.bluetooth.le.BluetoothLeScanner;
+          import android.bluetooth.le.ScanCallback;
+          import android.bluetooth.le.ScanResult;
+          import android.bluetooth.le.ScanSettings;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.RectF;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          import java.lang.reflect.Method;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Set;
+          import java.util.UUID;
+
+          /**
+           * JARVIS Kontrol: aplikasi pendamping kacamata Q11-106C.
+           * - Menampilkan baterai kacamata (3 cara: laporan Bluetooth HFP, broadcast sistem, BLE Battery Service).
+           * - Menampilkan status koneksi.
+           * - Membuka JARVIS (versi web, ditenagai Claude) di Chrome.
+           * - Memberi peringatan saat baterai kacamata lemah.
+           */
+          @SuppressLint("MissingPermission")
+          public class MainActivity extends Activity {
+
+              static final String JARVIS_URL = "https://claude.ai/artifact/RsBPJKYfZHvZRuYHsRNV8p";
+
+              static final UUID BATT_SVC = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb");
+              static final UUID BATT_LVL = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb");
+              static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+              static final String ACTION_BATT = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED";
+              static final String EXTRA_BATT = "android.bluetooth.device.extra.BATTERY_LEVEL";
+
+              static final int BG = 0xFF0D0F12, PANEL = 0xFF171A1F, LINE = 0xFF262A31, INK = 0xFFEEF0F3,
+                      MUTED = 0xFF8D94A0, ACCENT = 0xFFFFD000, OK = 0xFF4FD1A5, BAD = 0xFFFF5B5B;
+
+              static final int REQ_PERM = 7;
+              static final long REFRESH_MS = 30000;
+
+              BluetoothAdapter adapter;
+              BluetoothDevice device;
+              BluetoothProfile headset;
+              BluetoothGatt gatt;
+              BluetoothLeScanner scanner;
+              boolean scanning = false;
+
+              SharedPreferences prefs;
+              final Handler ui = new Handler(Looper.getMainLooper());
+
+              TextView tvName, tvConn, tvPct, tvSrc, tvHint;
+              BatteryBar bar;
+              LinearLayout deviceList;
+
+              int level = -1;
+              boolean warned = false;
+              boolean connected = false;
+
+              // ------------------------------------------------------------------ lifecycle
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  prefs = getSharedPreferences("jarvis", MODE_PRIVATE);
+                  BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+                  adapter = bm != null ? bm.getAdapter() : null;
+                  buildUi();
+                  makeChannel();
+                  askPermissions();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  IntentFilter f = new IntentFilter();
+                  f.addAction(ACTION_BATT);
+                  f.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+                  f.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+                  f.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+                  if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, f, Context.RECEIVER_EXPORTED);
+                  else registerReceiver(receiver, f);
+                  start();
+                  ui.postDelayed(ticker, REFRESH_MS);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  ui.removeCallbacks(ticker);
+                  try { unregisterReceiver(receiver); } catch (Exception ignored) { }
+                  stopScan();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  closeGatt();
+                  if (headset != null && adapter != null) {
+                      try { adapter.closeProfileProxy(BluetoothProfile.HEADSET, headset); } catch (Exception ignored) { }
+                  }
+              }
+
+              final Runnable ticker = new Runnable() {
+                  @Override public void run() {
+                      refresh(false);
+                      ui.postDelayed(this, REFRESH_MS);
+                  }
+              };
+
+              // ------------------------------------------------------------------ permissions
+
+              void askPermissions() {
+                  List<String> need = new ArrayList<>();
+                  if (Build.VERSION.SDK_INT >= 31) {
+                      if (!granted(Manifest.permission.BLUETOOTH_CONNECT)) need.add(Manifest.permission.BLUETOOTH_CONNECT);
+                      if (!granted(Manifest.permission.BLUETOOTH_SCAN)) need.add(Manifest.permission.BLUETOOTH_SCAN);
+                  } else {
+                      if (!granted(Manifest.permission.ACCESS_FINE_LOCATION)) need.add(Manifest.permission.ACCESS_FINE_LOCATION);
+                  }
+                  if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
+                      need.add(Manifest.permission.POST_NOTIFICATIONS);
+                  }
+                  if (!need.isEmpty()) requestPermissions(need.toArray(new String[0]), REQ_PERM);
+              }
+
+              boolean granted(String p) {
+                  return checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED;
+              }
+
+              boolean canConnect() {
+                  return Build.VERSION.SDK_INT < 31 || granted(Manifest.permission.BLUETOOTH_CONNECT);
+              }
+
+              boolean canScan() {
+                  return Build.VERSION.SDK_INT >= 31 ? granted(Manifest.permission.BLUETOOTH_SCAN)
+                          : granted(Manifest.permission.ACCESS_FINE_LOCATION);
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+                  super.onRequestPermissionsResult(code, perms, results);
+                  start();
+              }
+
+              // ------------------------------------------------------------------ main flow
+
+              void start() {
+                  if (adapter == null) {
+                      setConn("HP ini tidak punya Bluetooth.", BAD);
+                      return;
+                  }
+                  if (!canConnect()) {
+                      setConn("Izin Bluetooth belum diberikan. Ketuk \"Izinkan Bluetooth\".", BAD);
+                      showHint(true);
+                      return;
+                  }
+                  if (!adapter.isEnabled()) {
+                      setConn("Bluetooth HP mati. Nyalakan Bluetooth dulu.", BAD);
+                      return;
+                  }
+                  if (headset == null) {
+                      adapter.getProfileProxy(this, new BluetoothProfile.ServiceListener() {
+                          @Override public void onServiceConnected(int profile, BluetoothProfile proxy) {
+                              headset = proxy;
+                              ui.post(() -> refresh(true));
+                          }
+                          @Override public void onServiceDisconnected(int profile) { headset = null; }
+                      }, BluetoothProfile.HEADSET);
+                  }
+                  pickDevice();
+                  listDevices();
+                  refresh(true);
+              }
+
+              /** Pilih kacamata: yang tersimpan, lalu yang namanya mengandung Q11, lalu headset yang sedang tersambung. */
+              void pickDevice() {
+                  if (!canConnect() || adapter == null) return;
+                  Set<BluetoothDevice> bonded = adapter.getBondedDevices();
+                  if (bonded == null) return;
+                  String saved = prefs.getString("addr", null);
+                  BluetoothDevice pick = null;
+                  for (BluetoothDevice d : bonded) {
+                      if (saved != null && saved.equals(d.getAddress())) { pick = d; break; }
+                  }
+                  if (pick == null) {
+                      for (BluetoothDevice d : bonded) {
+                          String n = safeName(d).toUpperCase(Locale.ROOT);
+                          if (n.contains("Q11") || n.contains("GLASS") || n.contains("SKMEI")) { pick = d; break; }
+                      }
+                  }
+                  if (pick == null && headset != null) {
+                      List<BluetoothDevice> c = headset.getConnectedDevices();
+                      if (c != null && !c.isEmpty()) pick = c.get(0);
+                  }
+                  if (pick != null && (device == null || !pick.getAddress().equals(device.getAddress()))) {
+                      device = pick;
+                      level = -1;
+                      closeGatt();
+                  }
+                  tvName.setText(device != null ? safeName(device) : "Kacamata belum dipilih");
+              }
+
+              String safeName(BluetoothDevice d) {
+                  try {
+                      String n = d.getName();
+                      return n != null && !n.isEmpty() ? n : d.getAddress();
+                  } catch (Exception e) {
+                      return "Perangkat";
+                  }
+              }
+
+              void refresh(boolean tryGatt) {
+                  if (adapter == null || !canConnect() || !adapter.isEnabled()) return;
+                  if (device == null) pickDevice();
+                  if (device == null) {
+                      setConn("Kacamata tidak ditemukan. Pasangkan Q11-106C di pengaturan Bluetooth, lalu pilih di bawah.", BAD);
+                      showHint(true);
+                      return;
+                  }
+                  connected = isConnected(device);
+                  if (connected) setConn("Tersambung", OK);
+                  else setConn("Tidak tersambung. Nyalakan kacamata dan dekatkan ke HP.", BAD);
+
+                  // Cara 1: laporan baterai bawaan Bluetooth (HFP / Android)
+                  int lv = hiddenBatteryLevel(device);
+                  if (lv >= 0) {
+                      setLevel(lv, "Dibaca dari laporan Bluetooth HP");
+                      return;
+                  }
+                  // Cara 2: BLE Battery Service
+                  if (connected && tryGatt) readGatt(device);
+                  if (level < 0) {
+                      tvSrc.setText(connected ? "Mencari data baterai lewat BLE…" : "Menunggu kacamata tersambung.");
+                  }
+              }
+
+              boolean isConnected(BluetoothDevice d) {
+                  try {
+                      if (headset != null) {
+                          List<BluetoothDevice> c = headset.getConnectedDevices();
+                          if (c != null) for (BluetoothDevice x : c) if (x.getAddress().equals(d.getAddress())) return true;
+                      }
+                      Method m = BluetoothDevice.class.getMethod("isConnected");
+                      Object r = m.invoke(d);
+                      return r instanceof Boolean && (Boolean) r;
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              int hiddenBatteryLevel(BluetoothDevice d) {
+                  try {
+                      Method m = BluetoothDevice.class.getMethod("getBatteryLevel");
+                      Object r = m.invoke(d);
+                      if (r instanceof Integer) {
+                          int v = (Integer) r;
+                          return v >= 0 && v <= 100 ? v : -1;
+                      }
+                  } catch (Exception ignored) { }
+                  return -1;
+              }
+
+              // ------------------------------------------------------------------ BLE GATT battery
+
+              void readGatt(BluetoothDevice d) {
+                  if (gatt != null) {
+                      readBatteryChar(gatt);
+                      return;
+                  }
+                  try {
+                      gatt = d.connectGatt(this, false, gattCb, BluetoothDevice.TRANSPORT_LE);
+                  } catch (Exception e) {
+                      startScan();
+                  }
+              }
+
+              void readBatteryChar(BluetoothGatt g) {
+                  BluetoothGattService s = g.getService(BATT_SVC);
+                  if (s == null) return;
+                  BluetoothGattCharacteristic c = s.getCharacteristic(BATT_LVL);
+                  if (c == null) return;
+                  g.readCharacteristic(c);
+              }
+
+              final BluetoothGattCallback gattCb = new BluetoothGattCallback() {
+                  @Override
+                  public void onConnectionStateChange(BluetoothGatt g, int status, int newState) {
+                      if (newState == BluetoothProfile.STATE_CONNECTED) {
+                          g.discoverServices();
+                      } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                          g.close();
+                          if (g == gatt) gatt = null;
+                          if (level < 0) ui.post(() -> startScan());
+                      }
+                  }
+
+                  @Override
+                  public void onServicesDiscovered(BluetoothGatt g, int status) {
+                      BluetoothGattService s = g.getService(BATT_SVC);
+                      if (s == null) {
+                          ui.post(() -> {
+                              if (level < 0) {
+                                  tvSrc.setText("Kacamata ini tidak mengirim data baterai lewat BLE.");
+                                  showHint(true);
+                              }
+                          });
+                          return;
+                      }
+                      BluetoothGattCharacteristic c = s.getCharacteristic(BATT_LVL);
+                      if (c == null) return;
+                      g.setCharacteristicNotification(c, true);
+                      BluetoothGattDescriptor desc = c.getDescriptor(CCCD);
+                      if (desc != null) {
+                          if (Build.VERSION.SDK_INT >= 33) {
+                              g.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                          } else {
+                              desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                              g.writeDescriptor(desc);
+                          }
+                      } else {
+                          g.readCharacteristic(c);
+                      }
+                  }
+
+                  @Override
+                  public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor d, int status) {
+                      readBatteryChar(g);
+                  }
+
+                  // Android 12 ke bawah
+                  @Override
+                  public void onCharacteristicRead(BluetoothGatt g, BluetoothGattCharacteristic c, int status) {
+                      if (Build.VERSION.SDK_INT < 33 && status == BluetoothGatt.GATT_SUCCESS) gotBle(c.getValue());
+                  }
+
+                  // Android 13 ke atas
+                  @Override
+                  public void onCharacteristicRead(BluetoothGatt g, BluetoothGattCharacteristic c, byte[] value, int status) {
+                      if (status == BluetoothGatt.GATT_SUCCESS) gotBle(value);
+                  }
+
+                  @Override
+                  public void onCharacteristicChanged(BluetoothGatt g, BluetoothGattCharacteristic c) {
+                      if (Build.VERSION.SDK_INT < 33) gotBle(c.getValue());
+                  }
+
+                  @Override
+                  public void onCharacteristicChanged(BluetoothGatt g, BluetoothGattCharacteristic c, byte[] value) {
+                      gotBle(value);
+                  }
+              };
+
+              void gotBle(byte[] v) {
+                  if (v == null || v.length == 0) return;
+                  final int lv = v[0] & 0xFF;
+                  if (lv > 100) return;
+                  ui.post(() -> setLevel(lv, "Dibaca langsung dari kacamata (BLE)"));
+              }
+
+              void closeGatt() {
+                  if (gatt != null) {
+                      try { gatt.close(); } catch (Exception ignored) { }
+                      gatt = null;
+                  }
+              }
+
+              /** Beberapa kacamata memakai alamat BLE yang berbeda dari alamat audio. Cari berdasarkan nama. */
+              void startScan() {
+                  if (scanning || adapter == null || !canScan() || device == null || level >= 0) return;
+                  scanner = adapter.getBluetoothLeScanner();
+                  if (scanner == null) return;
+                  scanning = true;
+                  tvSrc.setText("Memindai sinyal BLE kacamata…");
+                  ScanSettings st = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+                  try {
+                      scanner.startScan(null, st, scanCb);
+                  } catch (Exception e) {
+                      scanning = false;
+                      return;
+                  }
+                  ui.postDelayed(() -> {
+                      if (scanning) {
+                          stopScan();
+                          if (level < 0) {
+                              tvSrc.setText("Data baterai belum tersedia dari kacamata ini.");
+                              showHint(true);
+                          }
+                      }
+                  }, 10000);
+              }
+
+              void stopScan() {
+                  if (scanning && scanner != null) {
+                      try { scanner.stopScan(scanCb); } catch (Exception ignored) { }
+                  }
+                  scanning = false;
+              }
+
+              final ScanCallback scanCb = new ScanCallback() {
+                  @Override
+                  public void onScanResult(int type, ScanResult r) {
+                      BluetoothDevice d = r.getDevice();
+                      if (d == null || device == null) return;
+                      String target = safeName(device).toUpperCase(Locale.ROOT);
+                      String n = safeName(d).toUpperCase(Locale.ROOT);
+                      boolean match = d.getAddress().equals(device.getAddress())
+                              || (!n.isEmpty() && (n.equals(target) || n.contains("Q11")));
+                      if (!match || d.getAddress().equals(device.getAddress()) && gatt != null) return;
+                      stopScan();
+                      closeGatt();
+                      ui.post(() -> {
+                          try {
+                              gatt = d.connectGatt(MainActivity.this, false, gattCb, BluetoothDevice.TRANSPORT_LE);
+                          } catch (Exception ignored) { }
+                      });
+                  }
+              };
+
+              // ------------------------------------------------------------------ system broadcasts
+
+              final BroadcastReceiver receiver = new BroadcastReceiver() {
+                  @Override
+                  public void onReceive(Context c, Intent i) {
+                      String a = i.getAction();
+                      if (a == null) return;
+                      BluetoothDevice d = i.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                      boolean ours = d != null && device != null && d.getAddress().equals(device.getAddress());
+                      if (ACTION_BATT.equals(a)) {
+                          int lv = i.getIntExtra(EXTRA_BATT, -1);
+                          if (ours && lv >= 0 && lv <= 100) setLevel(lv, "Dilaporkan oleh kacamata lewat Bluetooth");
+                      } else if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(a)) {
+                          if (ours || device == null) ui.postDelayed(() -> { pickDevice(); refresh(true); }, 1500);
+                      } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(a)) {
+                          if (ours) { closeGatt(); refresh(false); }
+                      } else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(a)) {
+                          ui.postDelayed(MainActivity.this::start, 800);
+                      }
+                  }
+              };
+
+              // ------------------------------------------------------------------ battery state
+
+              void setLevel(int lv, String src) {
+                  level = lv;
+                  tvPct.setText(lv + "%");
+                  int col = lv <= 20 ? BAD : lv <= 40 ? ACCENT : OK;
+                  tvPct.setTextColor(col);
+                  bar.set(lv, col);
+                  tvSrc.setText(src + " · " + estimate(lv));
+                  showHint(false);
+                  if (lv <= 20 && !warned) {
+                      warned = true;
+                      notifyLow(lv);
+                  } else if (lv > 25) {
+                      warned = false;
+                  }
+              }
+
+              String estimate(int lv) {
+                  // Kacamata audio kelas ini rata-rata ±6 jam pemakaian dari 100%
+                  double hours = lv / 100.0 * 6.0;
+                  if (hours < 1) return "sisa < 1 jam pemakaian";
+                  return String.format(Locale.ROOT, "perkiraan sisa ±%.0f jam", hours);
+              }
+
+              void makeChannel() {
+                  NotificationManager nm = getSystemService(NotificationManager.class);
+                  if (nm == null) return;
+                  NotificationChannel ch = new NotificationChannel("batt", "Baterai kacamata", NotificationManager.IMPORTANCE_HIGH);
+                  ch.setDescription("Peringatan saat baterai kacamata lemah");
+                  nm.createNotificationChannel(ch);
+              }
+
+              void notifyLow(int lv) {
+                  NotificationManager nm = getSystemService(NotificationManager.class);
+                  if (nm == null) return;
+                  if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) return;
+                  Notification n = new Notification.Builder(this, "batt")
+                          .setSmallIcon(android.R.drawable.stat_sys_warning)
+                          .setContentTitle("Baterai kacamata " + lv + "%")
+                          .setContentText("Segera isi daya kacamata Q11 supaya JARVIS tetap bisa dipakai.")
+                          .setAutoCancel(true)
+                          .build();
+                  nm.notify(1, n);
+              }
+
+              // ------------------------------------------------------------------ actions
+
+              void openJarvis() {
+                  Uri u = Uri.parse(JARVIS_URL);
+                  Intent chrome = new Intent(Intent.ACTION_VIEW, u).setPackage("com.android.chrome");
+                  try {
+                      startActivity(chrome);
+                  } catch (Exception e) {
+                      try {
+                          startActivity(new Intent(Intent.ACTION_VIEW, u));
+                      } catch (Exception ignored) {
+                          tvHint.setText("Tidak ada browser. Pasang Google Chrome dulu.");
+                          tvHint.setVisibility(View.VISIBLE);
+                      }
+                  }
+              }
+
+              void openBtSettings() {
+                  try {
+                      startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS));
+                  } catch (Exception ignored) { }
+              }
+
+              void listDevices() {
+                  deviceList.removeAllViews();
+                  if (adapter == null || !canConnect()) return;
+                  Set<BluetoothDevice> bonded = adapter.getBondedDevices();
+                  if (bonded == null || bonded.isEmpty()) {
+                      deviceList.addView(text("Belum ada perangkat yang dipasangkan.", 14, MUTED, false));
+                      return;
+                  }
+                  for (final BluetoothDevice d : bonded) {
+                      boolean sel = device != null && d.getAddress().equals(device.getAddress());
+                      Button b = button((sel ? "✓  " : "") + safeName(d), sel);
+                      b.setOnClickListener(v -> {
+                          prefs.edit().putString("addr", d.getAddress()).apply();
+                          device = d;
+                          level = -1;
+                          tvPct.setText("--%");
+                          tvPct.setTextColor(MUTED);
+                          bar.set(0, LINE);
+                          closeGatt();
+                          tvName.setText(safeName(d));
+                          listDevices();
+                          refresh(true);
+                      });
+                      deviceList.addView(b, lp(-1, -2, 0, 0, 0, dp(8)));
+                  }
+              }
+
+              // ------------------------------------------------------------------ UI
+
+              void setConn(String s, int col) {
+                  tvConn.setText("●  " + s);
+                  tvConn.setTextColor(col);
+              }
+
+              void showHint(boolean on) {
+                  tvHint.setVisibility(on ? View.VISIBLE : View.GONE);
+              }
+
+              void buildUi() {
+                  getWindow().setStatusBarColor(BG);
+                  getWindow().setNavigationBarColor(BG);
+
+                  ScrollView sv = new ScrollView(this);
+                  sv.setBackgroundColor(BG);
+                  sv.setFillViewport(true);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(20), dp(28), dp(20), dp(28));
+                  sv.addView(root);
+
+                  TextView title = text("JARVIS Kontrol", 26, INK, true);
+                  root.addView(title);
+                  root.addView(text("Pendamping kacamata Q11-106C · ditenagai Claude", 14, MUTED, false), lp(-1, -2, 0, dp(2), 0, dp(20)));
+
+                  // Kartu baterai
+                  LinearLayout card = panel();
+                  tvName = text("Mencari kacamata…", 17, INK, true);
+                  card.addView(tvName);
+                  tvConn = text("●  Memeriksa…", 14, MUTED, false);
+                  card.addView(tvConn, lp(-1, -2, 0, dp(4), 0, dp(14)));
+
+                  card.addView(text("BATERAI KACAMATA", 12, MUTED, true));
+                  tvPct = text("--%", 64, MUTED, true);
+                  tvPct.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+                  card.addView(tvPct, lp(-1, -2, 0, dp(2), 0, dp(8)));
+                  bar = new BatteryBar(this);
+                  card.addView(bar, lp(-1, dp(14), 0, 0, 0, dp(10)));
+                  tvSrc = text("Menunggu data…", 13, MUTED, false);
+                  card.addView(tvSrc);
+                  root.addView(card, lp(-1, -2, 0, 0, 0, dp(16)));
+
+                  tvHint = text("Kalau angka baterai tidak muncul: sebagian kacamata murah tidak mengirim info baterai ke HP. " +
+                          "Coba buka Pengaturan → Bluetooth; jika persen baterai tampil di samping Q11-106C, aplikasi ini juga bisa membacanya " +
+                          "setelah kacamata disambung ulang. Pastikan juga semua izin Bluetooth sudah diberikan.", 13, MUTED, false);
+                  tvHint.setVisibility(View.GONE);
+                  root.addView(tvHint, lp(-1, -2, 0, 0, 0, dp(16)));
+
+                  // Tombol aksi
+                  Button open = button("Buka JARVIS", true);
+                  open.setOnClickListener(v -> openJarvis());
+                  root.addView(open, lp(-1, dp(56), 0, 0, 0, dp(10)));
+
+                  Button ref = button("Segarkan baterai", false);
+                  ref.setOnClickListener(v -> { closeGatt(); level = -1; askPermissions(); start(); });
+                  root.addView(ref, lp(-1, dp(50), 0, 0, 0, dp(10)));
+
+                  Button bt = button("Pengaturan Bluetooth", false);
+                  bt.setOnClickListener(v -> openBtSettings());
+                  root.addView(bt, lp(-1, dp(50), 0, 0, 0, dp(10)));
+
+                  Button perm = button("Izinkan Bluetooth & notifikasi", false);
+                  perm.setOnClickListener(v -> {
+                      askPermissions();
+                      if (canConnect()) start();
+                      else {
+                          Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+                          try { startActivity(i); } catch (Exception ignored) { }
+                      }
+                  });
+                  root.addView(perm, lp(-1, dp(50), 0, 0, 0, dp(24)));
+
+                  // Daftar perangkat
+                  root.addView(text("PILIH KACAMATA", 12, MUTED, true), lp(-1, -2, 0, 0, 0, dp(8)));
+                  deviceList = new LinearLayout(this);
+                  deviceList.setOrientation(LinearLayout.VERTICAL);
+                  root.addView(deviceList);
+
+                  root.addView(text("Cara pakai: nyalakan kacamata, pastikan tersambung di Bluetooth HP, lalu ketuk \"Buka JARVIS\". " +
+                          "Di JARVIS, ketuk mikrofon sekali, lalu panggil \"Hi JARVIS\".", 13, MUTED, false), lp(-1, -2, 0, dp(20), 0, 0));
+
+                  setContentView(sv);
+              }
+
+              LinearLayout panel() {
+                  LinearLayout p = new LinearLayout(this);
+                  p.setOrientation(LinearLayout.VERTICAL);
+                  p.setPadding(dp(18), dp(18), dp(18), dp(18));
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(PANEL);
+                  g.setCornerRadius(dp(18));
+                  g.setStroke(dp(1), LINE);
+                  p.setBackground(g);
+                  return p;
+              }
+
+              TextView text(String s, int sp, int col, boolean bold) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+                  t.setTextColor(col);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  t.setLineSpacing(0, 1.15f);
+                  return t;
+              }
+
+              Button button(String s, boolean primary) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                  b.setTextColor(primary ? 0xFF14120A : INK);
+                  b.setGravity(Gravity.CENTER);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(primary ? ACCENT : PANEL);
+                  g.setCornerRadius(dp(14));
+                  g.setStroke(dp(1), primary ? ACCENT : LINE);
+                  b.setBackground(g);
+                  b.setStateListAnimator(null);
+                  return b;
+              }
+
+              LinearLayout.LayoutParams lp(int w, int h, int l, int t, int r, int bt) {
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                          w == -1 ? ViewGroup.LayoutParams.MATCH_PARENT : w,
+                          h == -2 ? ViewGroup.LayoutParams.WRAP_CONTENT : h);
+                  p.setMargins(l, t, r, bt);
+                  return p;
+              }
+
+              int dp(int v) {
+                  return Math.round(v * getResources().getDisplayMetrics().density);
+              }
+
+              /** Batang baterai sederhana. */
+              static class BatteryBar extends View {
+                  final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  final RectF r = new RectF();
+                  int pct = 0;
+
+                  BatteryBar(Context c) {
+                      super(c);
+                      track.setColor(LINE);
+                      fill.setColor(LINE);
+                  }
+
+                  void set(int p, int color) {
+                      pct = Math.max(0, Math.min(100, p));
+                      fill.setColor(color);
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      float h = getHeight(), w = getWidth(), rad = h / 2f;
+                      r.set(0, 0, w, h);
+                      c.drawRoundRect(r, rad, rad, track);
+                      if (pct > 0) {
+                          r.set(0, 0, Math.max(h, w * pct / 100f), h);
+                          c.drawRoundRect(r, rad, rad, fill);
+                      }
+                  }
+              }
+          }
+          JARVIS_EOF_6
+          find proj -type f
+
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -29,11 +886,10 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build APK
-        working-directory: jarvis-kontrol
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: cd proj && gradle assembleDebug --no-daemon --stacktrace
 
       - name: Siapkan APK
-        run: cp jarvis-kontrol/app/build/outputs/apk/debug/app-debug.apk JARVIS-Kontrol.apk
+        run: cp proj/app/build/outputs/apk/debug/app-debug.apk JARVIS-Kontrol.apk
 
       - uses: softprops/action-gh-release@v2
         with:
