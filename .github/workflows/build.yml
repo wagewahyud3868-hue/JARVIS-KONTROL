@@ -49,8 +49,8 @@ jobs:
                   applicationId "com.jarvis.asisten"
                   minSdk 26
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 2
+                  versionName "1.1"
               }
 
               signingConfigs {
@@ -152,15 +152,6 @@ jobs:
                       android:exported="false"
                       android:foregroundServiceType="microphone|location|camera" />
 
-                  <service
-                      android:name=".NotifListener"
-                      android:exported="true"
-                      android:label="JARVIS pembaca WhatsApp"
-                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
-                      <intent-filter>
-                          <action android:name="android.service.notification.NotificationListenerService" />
-                      </intent-filter>
-                  </service>
               </application>
           </manifest>
           JARVIS_EOF_4
@@ -1922,8 +1913,8 @@ jobs:
                       startTranslate(c);
                       return;
                   }
-                  if (has(c, "\\b(baca(kan)?|ada)\\b.*\\b(pesan|whatsapp|wa|chat)\\b")) {
-                      readWhatsApp();
+                  if (has(c, "\\b(baca(kan)?|ada|balas|jawab)\\b.*\\b(pesan|whatsapp|wa|chat)\\b")) {
+                      speak("Maaf " + bos() + ", fitur WhatsApp belum tersedia di versi ini karena diblokir Play Protect.", null);
                       return;
                   }
                   Matcher rp = Pattern.compile("^(balas|jawab)\\s*(pesan(nya)?|ke dia|dia)?\\s*[:,]?\\s*(.+)$", Pattern.CASE_INSENSITIVE).matcher(c);
@@ -2598,11 +2589,6 @@ jobs:
                   refreshPerms();
               }
 
-              boolean notifAccess() {
-                  String flat = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
-                  return flat != null && flat.contains(new ComponentName(this, NotifListener.class).flattenToString());
-              }
-
               boolean batteryFree() {
                   PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
                   return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
@@ -2613,7 +2599,6 @@ jobs:
                   String[] all = runtimePerms();
                   for (String s : all) if (checkSelfPermission(s) == PackageManager.PERMISSION_GRANTED) ok++;
                   String sb = (ok == all.length ? "✓ " : "✗ ") + "Izin utama: " + ok + "/" + all.length + "\n"
-                          + (notifAccess() ? "✓ " : "✗ ") + "Akses notifikasi (baca WhatsApp)\n"
                           + (Settings.canDrawOverlays(this) ? "✓ " : "✗ ") + "Tampil di atas aplikasi lain (buka Maps)\n"
                           + (batteryFree() ? "✓ " : "✗ ") + "Bebas pembatasan baterai (siaga terus)";
                   tvPerm.setText(sb);
@@ -2719,7 +2704,7 @@ jobs:
                   // log
                   LinearLayout logCard = panel();
                   logCard.addView(label("PERCAKAPAN TERAKHIR"));
-                  tvLog = text("Ucapkan \"Hi JARVIS\" setelah JARVIS aktif.\n\nContoh:\n• Hi JARVIS, ngobrol yuk\n• Hi JARVIS, antar aku ke Monas\n• Hi JARVIS, aku di mana?\n• Hi JARVIS, deteksi apa yang ada di depanku\n• Hi JARVIS, mode penerjemah bahasa Jepang\n• Hi JARVIS, bacakan pesan\n• Hi JARVIS, balas: oke otw", 14, INK, false);
+                  tvLog = text("Ucapkan \"Hi JARVIS\" setelah JARVIS aktif.\n\nContoh:\n• Hi JARVIS, ngobrol yuk\n• Hi JARVIS, antar aku ke Monas\n• Hi JARVIS, aku di mana?\n• Hi JARVIS, deteksi apa yang ada di depanku\n• Hi JARVIS, mode penerjemah bahasa Jepang", 14, INK, false);
                   tvLog.setTextIsSelectable(true);
                   logCard.addView(tvLog, lp(0, dp(8), 0, 0));
                   root.addView(logCard, lp(0, 0, 0, dp(14)));
@@ -2727,7 +2712,7 @@ jobs:
                   // settings
                   LinearLayout set = panel();
                   set.addView(label("PENGATURAN"));
-                  set.addView(text("API key Claude (boleh dikosongkan). Tanpa API key: telepon, WhatsApp, GPS & Maps tetap jalan; ngobrol, penerjemah & kamera dialihkan ke JARVIS web gratis.", 13, MUTED, false), lp(0, dp(10), 0, dp(4)));
+                  set.addView(text("API key Claude (boleh dikosongkan). Tanpa API key: telepon, GPS & Maps tetap jalan; ngobrol, penerjemah & kamera dialihkan ke JARVIS web gratis.", 13, MUTED, false), lp(0, dp(10), 0, dp(4)));
                   etKey = edit(prefs.getString("apikey", ""), "sk-ant-…");
                   etKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
                   set.addView(etKey);
@@ -2757,8 +2742,7 @@ jobs:
                   test.setOnClickListener(v -> testVoice());
                   set.addView(test, lpH(dp(48), 0, dp(10), 0, 0));
 
-                  set.addView(check("Bacakan WhatsApp masuk otomatis", "autoWa", true), lp(0, dp(10), 0, 0));
-                  set.addView(check("Umumkan telepon masuk & angkat lewat suara", "announceCall", true), lp(0, 0, 0, 0));
+                  set.addView(check("Umumkan telepon masuk & angkat lewat suara", "announceCall", true), lp(0, dp(10), 0, 0));
                   set.addView(check("Pakai mikrofon headset/kacamata (mode panggilan)", "sco", true), lp(0, 0, 0, 0));
                   set.addView(check("Senyapkan bunyi bip saat mendengarkan", "mutebeep", true), lp(0, 0, 0, 0));
                   set.addView(text("Perubahan suara & mikrofon berlaku setelah JARVIS dimatikan lalu diaktifkan lagi.", 12, MUTED, false), lp(0, dp(6), 0, 0));
@@ -2772,13 +2756,10 @@ jobs:
                   Button p1 = button("1. Izin utama", false);
                   p1.setOnClickListener(v -> askPerms());
                   perm.addView(p1, lpH(dp(48), 0, 0, 0, dp(8)));
-                  Button p2 = button("2. Akses notifikasi WhatsApp", false);
-                  p2.setOnClickListener(v -> openSetting(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-                  perm.addView(p2, lpH(dp(48), 0, 0, 0, dp(8)));
-                  Button p3 = button("3. Tampil di atas aplikasi lain", false);
+                  Button p3 = button("2. Tampil di atas aplikasi lain", false);
                   p3.setOnClickListener(v -> openSetting(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))));
                   perm.addView(p3, lpH(dp(48), 0, 0, 0, dp(8)));
-                  Button p4 = button("4. Bebaskan dari hemat baterai", false);
+                  Button p4 = button("3. Bebaskan dari hemat baterai", false);
                   p4.setOnClickListener(v -> openSetting(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))));
                   perm.addView(p4, lpH(dp(48), 0, 0, 0, 0));
                   root.addView(perm, lp(0, 0, 0, dp(14)));
@@ -2920,68 +2901,6 @@ jobs:
               }
           }
           JARVIS_EOF_10
-          mkdir -p "proj/app/src/main/java/com/jarvis/asisten"
-          cat > "proj/app/src/main/java/com/jarvis/asisten/NotifListener.java" <<'JARVIS_EOF_11'
-          package com.jarvis.asisten;
-
-          import android.app.Notification;
-          import android.os.Bundle;
-          import android.service.notification.NotificationListenerService;
-          import android.service.notification.StatusBarNotification;
-
-          import java.util.Iterator;
-          import java.util.LinkedHashSet;
-
-          /** Membaca notifikasi WhatsApp yang masuk, lalu meneruskannya ke JARVIS untuk dibacakan. */
-          public class NotifListener extends NotificationListenerService {
-
-              private static final LinkedHashSet<String> seen = new LinkedHashSet<>();
-
-              @Override
-              public void onNotificationPosted(StatusBarNotification sbn) {
-                  String pkg = sbn.getPackageName();
-                  if (!"com.whatsapp".equals(pkg) && !"com.whatsapp.w4b".equals(pkg)) return;
-                  Notification n = sbn.getNotification();
-                  if (n == null) return;
-                  if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
-                  Bundle ex = n.extras;
-                  if (ex == null) return;
-                  CharSequence title = ex.getCharSequence(Notification.EXTRA_TITLE);
-                  CharSequence text = ex.getCharSequence(Notification.EXTRA_TEXT);
-                  if (title == null || text == null) return;
-                  String from = title.toString().trim();
-                  String body = text.toString().trim();
-                  if (from.isEmpty() || body.isEmpty()) return;
-                  if (from.equalsIgnoreCase("WhatsApp")) return;
-                  String low = body.toLowerCase();
-                  if (low.matches(".*\\d+\\s+(pesan|messages?)\\s*(baru|new)?.*") && low.length() < 40) return;
-                  if (low.contains("memeriksa pesan baru") || low.contains("checking for new messages")) return;
-
-                  String key = from + "|" + body;
-                  synchronized (seen) {
-                      if (seen.contains(key)) return;
-                      seen.add(key);
-                      if (seen.size() > 150) {
-                          Iterator<String> it = seen.iterator();
-                          it.next();
-                          it.remove();
-                      }
-                  }
-
-                  Notification.Action reply = null;
-                  if (n.actions != null) {
-                      for (Notification.Action a : n.actions) {
-                          if (a != null && a.getRemoteInputs() != null && a.getRemoteInputs().length > 0) {
-                              reply = a;
-                              break;
-                          }
-                      }
-                  }
-                  JarvisService s = JarvisService.instance;
-                  if (s != null) s.onWhatsApp(from, body, reply);
-              }
-          }
-          JARVIS_EOF_11
           base64 -d > proj/app/jarvis.keystore <<'JARVIS_KEY'
           MIIKNAIBAzCCCd4GCSqGSIb3DQEHAaCCCc8EggnLMIIJxzCCBa4GCSqGSIb3DQEHAaCCBZ8EggWb
           MIIFlzCCBZMGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUM
